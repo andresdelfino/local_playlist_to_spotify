@@ -2,14 +2,14 @@
 
 import csv
 import os
-import types
 
 import requests
 
 
-#export SPOTIFY_TOKEN=
-#export PLAYLIST_ID=
-#export MUSIC_ROOT=/home/me/música
+# Set:
+# export SPOTIFY_TOKEN=
+# export PLAYLIST_ID=
+# export MUSIC_ROOT=/home/me/música
 
 
 def main():
@@ -30,8 +30,6 @@ def main():
         'market': 'AR',
         'limit': '1',
     }
-
-    table = []
 
     with open('songs.csv', 'w', newline='') as f:
         writer = csv.writer(f, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
