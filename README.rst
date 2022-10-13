@@ -1,3 +1,11 @@
+Requirements
+----------
+
+* Python 3.10
+
+How to use
+----------
+
 Request a token selecting scope ``playlist-modify-private``:
 https://developer.spotify.com/console/post-playlist-tracks/
 
