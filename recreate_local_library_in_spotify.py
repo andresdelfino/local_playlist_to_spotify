@@ -35,6 +35,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
         }
 
         writer = csv.writer(f)
+
         writer.writerow([
             'File track',
             'File artist',
@@ -71,9 +72,8 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                         'q': query,
                     },
                 )
-                response.raise_for_status()
-
                 logger.debug('%s', response.json())
+                response.raise_for_status()
 
                 if response.json()['tracks']['total'] == 0:
                     spotify_track_name = ''
@@ -105,9 +105,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                                 f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks',
                                 params={'uris': match['uri']},
                             )
-
                             logger.debug('%s', response.json())
-
                             if response.status_code == 201:
                                 break
                             elif response.status_code != 503:
