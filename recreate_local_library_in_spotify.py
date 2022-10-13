@@ -85,7 +85,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                     mismatch = False
 
                     for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE:
-                        if substring_to_exclude in candidate['name'].lower() and not substring_to_exclude in file_track_name.lower():
+                        if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
                             mismatch = True
                             break
 
