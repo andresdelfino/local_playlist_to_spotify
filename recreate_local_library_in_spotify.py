@@ -68,7 +68,6 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                     params={
                         'type': 'track',
                         'market': 'AR',
-                        'limit': '1',
                         'q': query,
                     },
                 )
@@ -80,26 +79,29 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                     spotify_artist_name = ''
                     spotify_track_url = ''
                 else:
-                    candidate = response.json()['tracks']['items'][0]
+                    match = None
 
-                    mismatch = False
+                    for candidate in response.json()['tracks']['items']:
+                        # Spotify issue
+                        if candidate is None:
+                            continue
 
-                    for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE:
-                        if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
-                            mismatch = True
+                        discard_candidate = False
+
+                        for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE:
+                            if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
+                                discard_candidate = True
+                                break
+
+                        if not discard_candidate:
+                            match = candidate
                             break
 
-                    if mismatch:
+                    if match is None:
                         spotify_track_name = ''
                         spotify_artist_name = ''
                         spotify_track_url = ''
                     else:
-                        match = candidate
-
-                        spotify_track_name = match['name']
-                        spotify_artist_name = match['artists'][0]['name']
-                        spotify_track_url = match['external_urls']['spotify']
-
                         while True:
                             response = session.post(
                                 f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks',
@@ -108,8 +110,12 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                             logger.debug('%s', response.json())
                             if response.status_code == 201:
                                 break
-                            elif response.status_code != 503:
+                            elif response.status_code not in {502, 503}:
                                 response.raise_for_status()
+
+                        spotify_track_name = match['name']
+                        spotify_artist_name = match['artists'][0]['name']
+                        spotify_track_url = match['external_urls']['spotify']
 
                 writer.writerow([
                     file_track_name,
