@@ -12,8 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 SUBSTRINGS_TO_EXCLUDE = [
+    'capella',
     'cover',
     'edit',
+    'instrumental',
+    'karaoke',
     'live',
     'radio',
     'remix',
@@ -57,7 +60,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                 file_artist_name = dirpath.removeprefix(music_root + '/').split('/')[0]
 
             for filename in filenames:
-                file_track_name = filename.rsplit('.', maxsplit=1)[0]
+                file_track_name = filename.rsplit('.', maxsplit=1)[0].rsplit('---', maxsplit=1)[0]
 
                 query = f'track:{file_track_name}'
                 if file_artist_name:
@@ -86,10 +89,15 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                         if candidate is None:
                             continue
 
+                        if 'karaoke' in candidate['album']['name'].lower():
+                            logger.debug('Skipping album "%s"', candidate['album']['name'])
+                            continue
+
                         discard_candidate = False
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE:
                             if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
+                                logger.debug('Skipping track "%s"', candidate['name'])
                                 discard_candidate = True
                                 break
 
