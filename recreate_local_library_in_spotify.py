@@ -2,8 +2,10 @@
 
 import argparse
 import csv
+import datetime
 import logging
 import os
+import sys
 
 import requests
 
@@ -11,7 +13,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-SUBSTRINGS_TO_EXCLUDE = [
+SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME = {
     'capella',
     'cover',
     'edit',
@@ -23,7 +25,11 @@ SUBSTRINGS_TO_EXCLUDE = [
     'version',
     'versión',
     'vivo',
-]
+}
+
+SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME = {
+    'karaoke',
+}
 
 
 def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify_token: str) -> None:
@@ -60,6 +66,8 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                 file_artist_name = dirpath.removeprefix(music_root + '/').split('/')[0]
 
             for filename in filenames:
+                # Track.ogg -> Track
+                # Track --- label.ogg -> Track
                 file_track_name = filename.rsplit('.', maxsplit=1)[0].rsplit('---', maxsplit=1)[0]
 
                 query = f'track:{file_track_name}'
@@ -85,25 +93,32 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                     match = None
 
                     for candidate in response.json()['tracks']['items']:
-                        # Spotify issue
+                        # Sometimes, Spotify returns None items
                         if candidate is None:
-                            continue
-
-                        if 'karaoke' in candidate['album']['name'].lower():
-                            logger.debug('Skipping album "%s"', candidate['album']['name'])
                             continue
 
                         discard_candidate = False
 
-                        for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE:
+                        for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME:
+                            if substring_to_exclude in candidate['album']['name'].lower():
+                                logger.debug('Skipping album "%s"', candidate['album']['name'])
+                                discard_candidate = True
+                                break
+
+                        if discard_candidate:
+                            continue
+
+                        for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME:
                             if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
                                 logger.debug('Skipping track "%s"', candidate['name'])
                                 discard_candidate = True
                                 break
 
-                        if not discard_candidate:
-                            match = candidate
-                            break
+                        if discard_candidate:
+                            continue
+
+                        match = candidate
+                        break
 
                     if match is None:
                         spotify_track_name = ''
@@ -134,8 +149,25 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                 ])
 
 
+def setup_logger() -> None:
+    formatter = logging.Formatter('%(name)s:%(levelname)s:%(asctime)s:%(message)s', '%Y-%m-%d %H:%M:%S')
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    fh = logging.FileHandler(f'{datetime.datetime.now():%Y%m%d%H%M%S}.log', mode='w')
+    fh.setFormatter(formatter)
+    fh.setLevel(logging.DEBUG)
+    root_logger.addHandler(fh)
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setFormatter(formatter)
+    sh.setLevel(logging.INFO)
+    root_logger.addHandler(sh)
+
+
 def main() -> None:
-    logging.basicConfig(level=logging.DEBUG)
+    setup_logger()
 
     parser = argparse.ArgumentParser(description='Recreate a local music library in Spotify.')
     parser.add_argument('music_root', help='root of the local music library')
