@@ -32,7 +32,7 @@ SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME = {
 }
 
 
-def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify_token: str) -> None:
+def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market: str, spotify_token: str) -> None:
     with (
         open('songs.csv', 'w', newline='') as f,
         requests.Session() as session,
@@ -61,9 +61,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
             if dirpath == music_root:
                 file_artist_name = 'N/A'
             else:
-                # music_root/Artist -> Artist -> Artist
-                # music_root/Artist/Album -> Artist/Album -> Artist
-                file_artist_name = dirpath.removeprefix(music_root + '/').split('/')[0]
+                file_artist_name = dirpath.split('/')[-1]
 
             for filename in filenames:
                 # Track.ogg -> Track
@@ -78,7 +76,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, spotify
                     'https://api.spotify.com/v1/search',
                     params={
                         'type': 'track',
-                        'market': 'AR',
+                        'market': market,
                         'q': query,
                     },
                 )
@@ -172,10 +170,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Recreate a local music library in Spotify.')
     parser.add_argument('music_root', help='root of the local music library')
     parser.add_argument('playlist_id', help='Spotify playlist ID')
+    parser.add_argument('market', help='Market')
 
     args = parser.parse_args()
 
-    recreate_local_library_in_spotify(args.music_root, args.playlist_id, os.environ['SPOTIFY_TOKEN'])
+    recreate_local_library_in_spotify(
+        args.music_root,
+        args.playlist_id,
+        args.market,
+        os.environ['SPOTIFY_TOKEN'],
+    )
 
 
 if __name__ == '__main__':

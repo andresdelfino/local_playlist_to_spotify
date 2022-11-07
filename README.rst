@@ -6,7 +6,7 @@ Requirements
 How to use
 ----------
 
-Request a token selecting scope ``playlist-modify-private``:
+Request an OAuth token selecting scope ``playlist-modify-private`` or ``playlist-modify-public`:
 https://developer.spotify.com/console/post-playlist-tracks/
 
 Export the token as an environment variable::
@@ -16,4 +16,4 @@ Export the token as an environment variable::
 Run::
 
     pip install -r requirements.txt
-    ./recreate_local_library_in_spotify.py /home/me/música gLOF49eo6DCx7xqyVDLIV1
+    ./recreate_local_library_in_spotify.py /home/me/música gLOF49eo6DCx7xqyVDLIV1 AR
