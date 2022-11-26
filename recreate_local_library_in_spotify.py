@@ -32,6 +32,15 @@ SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME = {
 }
 
 
+def get_release_date(track) -> datetime.date:
+    date = track['album']['release_date']
+
+    while not date.count('-') == 2:
+        date += '-01'
+
+    return datetime.date.fromisoformat(date)
+
+
 def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market: str, spotify_token: str) -> None:
     with (
         open('songs.csv', 'w', newline='') as f,
@@ -90,11 +99,9 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
                 else:
                     match = None
 
-                    for candidate in response.json()['tracks']['items']:
-                        # Sometimes, Spotify returns None items
-                        if candidate is None:
-                            continue
+                    candidates = (candidate for candidate in response.json()['tracks']['items'] if candidate is not None)
 
+                    for candidate in sorted(candidates, key=get_release_date):
                         discard_candidate = False
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME:
