@@ -13,7 +13,6 @@ requests = "*"
 [tool.poetry.scripts]
 recreate_local_library_in_spotify = "recreate_local_library_in_spotify:main"
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
