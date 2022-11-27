@@ -6,7 +6,7 @@ Requirements
 How to use
 ----------
 
-Request an OAuth token selecting scope ``playlist-modify-private`` or ``playlist-modify-public`:
+Request an OAuth token selecting scope ``playlist-modify-private`` or ``playlist-modify-public``:
 https://developer.spotify.com/console/post-playlist-tracks/
 
 Export the token as an environment variable::
