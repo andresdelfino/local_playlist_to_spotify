@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "recreate-local-library-in-spotify"
+version = "0.1.0"
+description = ""
+authors = ["Andrés Delfino <adelfino@gmail.com>"]
+readme = "README.rst"
+packages = [{include = "recreate_local_library_in_spotify"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "*"
+
+[tool.poetry.scripts]
+recreate_local_library_in_spotify = "recreate_local_library_in_spotify:main"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
