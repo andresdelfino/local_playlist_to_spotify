@@ -15,5 +15,4 @@ Export the token as an environment variable::
 
 Run::
 
-    pip install -r requirements.txt
-    ./recreate_local_library_in_spotify.py /home/me/música gLOF49eo6DCx7xqyVDLIV1 AR
+    recreate_local_library_in_spotify /home/me/música gLOF49eo6DCx7xqyVDLIV1 AR
