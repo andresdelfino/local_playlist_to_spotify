@@ -22,6 +22,7 @@ SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME = {
     'live',
     'radio',
     'remix',
+    'unplugged',
     'version',
     'versión',
     'vivo',
