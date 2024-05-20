@@ -1,9 +1,15 @@
 import argparse
+import base64
 import csv
 import datetime
 import logging
 import os
+import random
+import re
+import string
 import sys
+import urllib.parse
+import webbrowser
 
 import requests
 
@@ -11,13 +17,18 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+REDIRECT_URI = 'https://example.com/callback'
+SCOPES = 'playlist-modify-private'
+
 SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME = {
     'capella',
+    'clean',
     'cover',
     'edit',
     'instrumental',
     'karaoke',
     'live',
+    'mix',
     'radio',
     'remix',
     'unplugged',
@@ -30,9 +41,14 @@ SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME = {
     'karaoke',
 }
 
+ERRORS_TO_IGNORE = {502, 503}
+
 
 def get_release_date(track) -> datetime.date:
     date = track['album']['release_date']
+
+    if date == '0000':
+        date = '0001-01-01'
 
     while not date.count('-') == 2:
         date += '-01'
@@ -40,7 +56,44 @@ def get_release_date(track) -> datetime.date:
     return datetime.date.fromisoformat(date)
 
 
-def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market: str, spotify_token: str) -> None:
+def recreate_local_library_in_spotify(playlist_name: str, music_root: str, market: str, client_id: str, client_secret: str) -> None:
+    state = ''.join(random.choice(string.ascii_letters) for i in range(16))
+
+    query_string = {
+      'response_type': 'code',
+      'client_id': client_id,
+      'scope': SCOPES,
+      'redirect_uri': REDIRECT_URI,
+      'state': state,
+    }
+
+    webbrowser.open('https://accounts.spotify.com/authorize?' + urllib.parse.urlencode(query_string))
+
+    redirection = input('Redirection: ')
+
+    code = urllib.parse.parse_qs(urllib.parse.urlparse(redirection).query)['code']
+
+    response = requests.post(
+        'https://accounts.spotify.com/api/token',
+        data={
+            'code': code,
+            'redirect_uri': REDIRECT_URI,
+            'grant_type': 'authorization_code',
+        },
+        headers={
+            'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode()).decode(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    )
+
+    try:
+        logger.debug('%s', response.json())
+    except requests.exceptions.JSONDecodeError:
+        logger.debug('No json response')
+    response.raise_for_status()
+
+    access_token = response.json()['access_token']
+
     with (
         open('songs.csv', 'w', newline='') as f,
         requests.Session() as session,
@@ -48,8 +101,34 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
         session.headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {spotify_token}',
+            'Authorization': f'Bearer {access_token}',
         }
+
+        response = session.get('https://api.spotify.com/v1/me')
+
+        try:
+            logger.debug('%s', response.json())
+        except requests.exceptions.JSONDecodeError:
+            logger.debug('No json response')
+        response.raise_for_status()
+
+        user_id = response.json()['id']
+
+        response = session.post(
+            f'https://api.spotify.com/v1/users/{user_id}/playlists',
+            json={
+                'name': playlist_name,
+                'public': False,
+            },
+        )
+
+        try:
+            logger.debug('%s', response.json())
+        except requests.exceptions.JSONDecodeError:
+            logger.debug('No json response')
+        response.raise_for_status()
+
+        playlist_id = response.json()['id']
 
         writer = csv.writer(f)
 
@@ -74,7 +153,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
             for filename in filenames:
                 # Track.ogg -> Track
                 # Track --- label.ogg -> Track
-                file_track_name = filename.rsplit('.', maxsplit=1)[0].rsplit('---', maxsplit=1)[0]
+                file_track_name = filename.rsplit('.', maxsplit=1)[0].rsplit(' --- ', maxsplit=1)[0]
 
                 query = f'track:{file_track_name}'
                 if file_artist_name:
@@ -88,7 +167,11 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
                         'q': query,
                     },
                 )
-                logger.debug('%s', response.json())
+
+                try:
+                    logger.debug('%s', response.json())
+                except requests.exceptions.JSONDecodeError:
+                    logger.debug('No json response')
                 response.raise_for_status()
 
                 if response.json()['tracks']['total'] == 0:
@@ -104,7 +187,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
                         discard_candidate = False
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME:
-                            if substring_to_exclude in candidate['album']['name'].lower():
+                            if re.match(rf'\b{substring_to_exclude}\b', candidate['album']['name'], flags=re.IGNORECASE):
                                 logger.debug('Skipping album "%s"', candidate['album']['name'])
                                 discard_candidate = True
                                 break
@@ -113,7 +196,7 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
                             continue
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME:
-                            if substring_to_exclude in candidate['name'].lower() and substring_to_exclude not in file_track_name.lower():
+                            if not re.match(rf'\b{substring_to_exclude}\b', file_track_name, flags=re.IGNORECASE) and re.match(rf'\b{substring_to_exclude}\b', candidate['name'], flags=re.IGNORECASE):
                                 logger.debug('Skipping track "%s"', candidate['name'])
                                 discard_candidate = True
                                 break
@@ -132,12 +215,21 @@ def recreate_local_library_in_spotify(music_root: str, playlist_id: str, market:
                         while True:
                             response = session.post(
                                 f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks',
-                                params={'uris': match['uri']},
+                                json={
+                                    'uris': [
+                                        match['uri'],
+                                    ],
+                                },
                             )
-                            logger.debug('%s', response.json())
-                            if response.status_code == 201:
+
+                            try:
+                                logger.debug('%s', response.json())
+                            except requests.exceptions.JSONDecodeError:
+                                logger.debug('No json response')
+
+                            if response.status_code == 200:
                                 break
-                            elif response.status_code not in {502, 503}:
+                            elif response.status_code not in ERRORS_TO_IGNORE:
                                 response.raise_for_status()
 
                         spotify_track_name = match['name']
@@ -174,17 +266,18 @@ def main() -> None:
     setup_logger()
 
     parser = argparse.ArgumentParser(description='Recreate a local music library in Spotify.')
+    parser.add_argument('playlist_name')
     parser.add_argument('music_root', help='root of the local music library')
-    parser.add_argument('playlist_id', help='Spotify playlist ID')
     parser.add_argument('market', help='Market')
 
     args = parser.parse_args()
 
     recreate_local_library_in_spotify(
-        args.music_root,
-        args.playlist_id,
-        args.market,
-        os.environ['SPOTIFY_TOKEN'],
+        playlist_name=args.playlist_name,
+        music_root=args.music_root,
+        market=args.market,
+        client_id=os.environ['SPOTIFY_CLIENT_ID'],
+        client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
     )
 
 
