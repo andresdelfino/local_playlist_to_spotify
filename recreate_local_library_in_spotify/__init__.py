@@ -21,15 +21,20 @@ REDIRECT_URI = 'https://example.com/callback'
 SCOPES = 'playlist-modify-private'
 
 SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME = {
+    'acustico',
+    'acústico',
     'capella',
     'clean',
     'cover',
+    'demo',
     'edit',
+    'en directo',
     'instrumental',
     'karaoke',
     'live',
     'mix',
     'radio',
+    'remake',
     'remix',
     'unplugged',
     'version',
@@ -175,6 +180,8 @@ def recreate_local_library_in_spotify(playlist_name: str, music_root: str, marke
                 response.raise_for_status()
 
                 if response.json()['tracks']['total'] == 0:
+                    logger.debug('No matches for file track "%s"', file_track_name)
+
                     spotify_track_name = ''
                     spotify_artist_name = ''
                     spotify_track_url = ''
@@ -183,12 +190,23 @@ def recreate_local_library_in_spotify(playlist_name: str, music_root: str, marke
 
                     candidates = (candidate for candidate in response.json()['tracks']['items'] if candidate is not None)
 
+                    normalized_file_track_name = re.sub(' +', ' ', file_track_name).lower().strip()
+
                     for candidate in sorted(candidates, key=get_release_date):
+                        if re.fullmatch('[^ ]+', file_track_name, flags=re.IGNORECASE) and candidate['name'].lower() != file_track_name.lower():
+                            logger.debug('Skipping track "%s" due to naming ("%s")', candidate['name'], file_track_name)
+                            continue
+
+                        normalized_candidate_name = re.sub(' +', ' ', candidate['name']).lower()
+                        if normalized_file_track_name not in normalized_candidate_name:
+                            logger.debug('Skipping track "%s" due to naming ("%s", "%s", "%s")', candidate['name'], file_track_name, normalized_file_track_name, normalized_candidate_name)
+                            continue
+
                         discard_candidate = False
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_ALBUM_NAME:
-                            if re.match(rf'\b{substring_to_exclude}\b', candidate['album']['name'], flags=re.IGNORECASE):
-                                logger.debug('Skipping album "%s"', candidate['album']['name'])
+                            if re.search(rf'\b{substring_to_exclude}\b', candidate['album']['name'], flags=re.IGNORECASE):
+                                logger.debug('Skipping album "%s" due to substring', candidate['album']['name'])
                                 discard_candidate = True
                                 break
 
@@ -196,8 +214,8 @@ def recreate_local_library_in_spotify(playlist_name: str, music_root: str, marke
                             continue
 
                         for substring_to_exclude in SUBSTRINGS_TO_EXCLUDE_FROM_TRACK_NAME:
-                            if not re.match(rf'\b{substring_to_exclude}\b', file_track_name, flags=re.IGNORECASE) and re.match(rf'\b{substring_to_exclude}\b', candidate['name'], flags=re.IGNORECASE):
-                                logger.debug('Skipping track "%s"', candidate['name'])
+                            if not re.search(rf'\b{substring_to_exclude}\b', file_track_name, flags=re.IGNORECASE) and re.search(rf'\b{substring_to_exclude}\b', candidate['name'], flags=re.IGNORECASE):
+                                logger.debug('Skipping track "%s" due to substring', candidate['name'])
                                 discard_candidate = True
                                 break
 
