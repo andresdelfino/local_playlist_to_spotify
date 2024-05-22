@@ -1,3 +1,4 @@
 poetry.lock
 *.log
 recreate_local_library_in_spotify/__pycache__
+songs.csv
